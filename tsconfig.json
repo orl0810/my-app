@@ -5,9 +5,7 @@
     "jsxImportSource": "nativewind",
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ]
+      "@/*": ["*"]
     }
   },
   "include": [

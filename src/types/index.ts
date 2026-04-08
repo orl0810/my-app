@@ -1,7 +1,7 @@
 // Niveles de dificultad disponibles
 export type Level = "beginner" | "intermediate" | "advanced";
 
-// Estructura de un ejercicio individual dentro de una sesión
+// Exercise structure within a training session
 export interface Exercise {
   id: string;
   name: string;
@@ -10,9 +10,10 @@ export interface Exercise {
   description: string;
 }
 
-// Estructura completa de una sesión de entrenamiento
+  // Training session structure
 export interface TrainingSession {
   id: string;
+  title: string;
   duration: string; // e.g. "45 min"
   level: Level;
   description: string;
@@ -32,6 +33,8 @@ export interface SessionState {
 export type SessionAction =
   | { type: "TOGGLE_COMPLETE"; id: string }
   | { type: "TOGGLE_FAVORITE"; id: string }
+  | { type: "SET_FAVORITE"; id: string; favorited: boolean }
+  | { type: "SET_FAVORITE_IDS"; ids: string[] }
   | { type: "LOAD_STATE"; state: SessionState };
 
 // Props de navegación (tipado fuerte para React Navigation)

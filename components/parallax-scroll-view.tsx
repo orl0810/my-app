@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactElement } from 'react';
+import type { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
   interpolate,
@@ -11,17 +11,23 @@ import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
-const HEADER_HEIGHT = 250;
+const HEADER_HEIGHT = 320;
 
 type Props = PropsWithChildren<{
   headerImage: ReactElement;
   headerBackgroundColor: { dark: string; light: string };
+  /** Renders below the parallax header and sticks to the top while scrolling. */
+  stickyHeader?: ReactNode;
+  /** Minimum height for the sticky header area (keeps the message anchored with breathing room). */
+  stickyHeaderMinHeight?: number;
 }>;
 
 export default function ParallaxScrollView({
   children,
   headerImage,
   headerBackgroundColor,
+  stickyHeader,
+  stickyHeaderMinHeight = 120,
 }: Props) {
   const backgroundColor = useThemeColor({}, 'background');
   const colorScheme = useColorScheme() ?? 'light';
@@ -48,7 +54,8 @@ export default function ParallaxScrollView({
     <Animated.ScrollView
       ref={scrollRef}
       style={{ backgroundColor, flex: 1 }}
-      scrollEventThrottle={16}>
+      scrollEventThrottle={16}
+      stickyHeaderIndices={stickyHeader != null ? [1] : undefined}>
       <Animated.View
         style={[
           styles.header,
@@ -57,6 +64,15 @@ export default function ParallaxScrollView({
         ]}>
         {headerImage}
       </Animated.View>
+      {stickyHeader != null ? (
+        <ThemedView
+          style={[
+            styles.stickyHeader,
+            { backgroundColor, minHeight: stickyHeaderMinHeight },
+          ]}>
+          {stickyHeader}
+        </ThemedView>
+      ) : null}
       <ThemedView style={styles.content}>{children}</ThemedView>
     </Animated.ScrollView>
   );
@@ -69,6 +85,14 @@ const styles = StyleSheet.create({
   header: {
     height: HEADER_HEIGHT,
     overflow: 'hidden',
+  },
+  stickyHeader: {
+    paddingHorizontal: 32,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 0,
+    overflow: 'hidden',
+    zIndex: 1,
   },
   content: {
     flex: 1,

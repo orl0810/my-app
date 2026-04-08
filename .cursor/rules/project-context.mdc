@@ -1,0 +1,69 @@
+---
+description: Expo app stack, folders, routing, domain types, Supabase, and styling conventions
+alwaysApply: true
+---
+
+# my-app — project context
+
+## Product
+
+Coaching / training app (onboarding brands **TTCoach**; copy mixes Spanish UI). Tennis-oriented content in `src/data/sessions.ts` (court tennis drills). Home tab lists **scheduled sessions** (lessons with date, coach, status).
+
+## Stack
+
+- **Expo SDK 54**, **React Native 0.81**, **React 19**, **TypeScript** (`strict`, `jsxImportSource: nativewind`)
+- **expo-router** (~6) — file-based routes; entry `expo-router/entry`
+- **NativeWind v4** + **Tailwind** — `className` on RN views where used
+- **Supabase** (`@supabase/supabase-js`) with **AsyncStorage** for auth session (`src/utils/supabase.ts`)
+- **expo-image**, **expo-haptics**, **expo-sqlite** (dependency present)
+
+## Path alias
+
+- `@/*` → repository root (see `tsconfig.json`). Example: `@/components/themed-text`, `@/hooks/use-color-scheme`.
+
+## Folder roles
+
+| Area | Purpose |
+|------|---------|
+| `app/` | Routes and screens; colocated UI under `app/components/` (e.g. `session-card.tsx`, kebab-case filenames) |
+| `src/types/` | Shared domain types (`Exercise`, `TrainingSession` workout model, `SessionState`, actions) |
+| `src/data/` | Static workout catalog — `TRAINING_SESSIONS` uses `src/types` `TrainingSession` |
+| `src/store/` | `SessionProvider` + reducer — favorites/completed IDs, persisted via `src/utils/storage.ts` |
+| `src/utils/` | `supabase.ts`, `storage.ts` |
+| `src/components/` | Feature pieces tied to old workout flow (e.g. `ExerciseItem`, `CompletionButton`) |
+| `components/`, `hooks/`, `constants/` | Expo template primitives — `ThemedText`, `ThemedView`, `ParallaxScrollView`, theme colors |
+
+## Critical type distinction
+
+Two different **`TrainingSession`** shapes exist:
+
+1. **`src/types` + `src/data/sessions.ts`** — workout **template**: `exercises[]`, `level` as `Level`, `duration` string, `category`, `imageColor`, etc.
+2. **`app/(tabs)/index.tsx` + `app/components/session-card.tsx`** — **booked lesson**: `date`, `time`, `coach`, `status` (`upcoming` \| `completed` \| `cancelled`), `type` (`individual` \| `group`), numeric `duration`, etc.
+
+When adding features, **import or extend the correct model**; do not assume one `TrainingSession` fits both.
+
+## Routing (`app/_layout.tsx`)
+
+Stack: `index` (redirect) → `onboarding-step-welcome` → `(tabs)` → `modal`. Tabs live under `app/(tabs)/` (`index`, `explore`); tab chrome in `app/(tabs)/_layout.tsx` (`HapticTab`, `IconSymbol`).
+
+`SessionProvider` / old `RootNavigator` are **commented out** in root layout — global session context is **not** wired to the router tree until restored.
+
+## Environment
+
+- `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY` (Expo public env; never commit real secrets in tracked `.env` if sensitive).
+
+## Styling patterns
+
+- **StyleSheet** + **template themed components** (`ThemedView`, `ThemedText`) on tabs/explore.
+- **NativeWind**: `className` (e.g. `space-y-3 mt-3` on home). `tailwind.config.js` `content` includes `./App.*` and `./src/**/*` — if Tailwind classes in `app/**` fail to compile, extend `content` to include `./app/**/*.{js,jsx,ts,tsx}`.
+
+## Conventions for new work
+
+- New **screens** → `app/` as `*.tsx`; follow **expo-router** (`Link`, `useRouter`, file names = segments).
+- Reusable **domain logic / types** → `src/`; keep **route-only UI** next to routes under `app/components/` when small.
+- Match existing **quote style** (double quotes in newer `app/` files).
+- Prefer **expo-image** `Image` for remote/static images where the file already does.
+
+## Commands
+
+- `npm start` / `expo start` — dev server; `npm run lint` — `expo lint`.

@@ -5,7 +5,7 @@ import { SessionState } from "../types";
 const STORAGE_KEY = "@tennisPro:sessionState";
 
 /**
- * Persiste el estado completo de sesiones en AsyncStorage.
+ * Persist the complete session state in AsyncStorage.
  * Llamar después de cada mutación del estado.
  */
 export const saveSessionState = async (state: SessionState): Promise<void> => {

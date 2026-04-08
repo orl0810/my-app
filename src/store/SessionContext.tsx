@@ -1,14 +1,19 @@
 import React, {
   createContext,
-  useContext,
-  useReducer,
-  useEffect,
-  useCallback,
-  useState,
-  ReactNode,
   JSX,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useReducer,
+  useState,
 } from 'react';
-import { SessionState, SessionAction } from '../types';
+import { Alert } from 'react-native';
+
+import { useAuth } from '@/src/context/AuthContext';
+
+import { SessionAction, SessionState } from '../types';
+import { getFavorites, toggleFavorite as toggleFavoriteRemote } from '../utils/sessions';
 import { loadSessionState, saveSessionState } from '../utils/storage';
 
 // ─── Estado inicial ────────────────────────────────────────────────────────────
@@ -38,6 +43,21 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
           : [...state.favoriteIds, action.id],
       };
     }
+    case 'SET_FAVORITE': {
+      const has = state.favoriteIds.includes(action.id);
+      if (action.favorited && !has) {
+        return { ...state, favoriteIds: [...state.favoriteIds, action.id] };
+      }
+      if (!action.favorited && has) {
+        return {
+          ...state,
+          favoriteIds: state.favoriteIds.filter((id) => id !== action.id),
+        };
+      }
+      return state;
+    }
+    case 'SET_FAVORITE_IDS':
+      return { ...state, favoriteIds: action.ids };
     case 'LOAD_STATE':
       return action.state;
     default:
@@ -65,20 +85,37 @@ interface SessionProviderProps {
 
 // ─── Provider — FIX: tipo de retorno explícito JSX.Element ────────────────────
 export function SessionProvider({ children }: SessionProviderProps): JSX.Element {
+  const { session, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [state, dispatch] = useReducer(sessionReducer, initialState);
 
-  // Cargar estado persistido al montar
   useEffect(() => {
-    const loadState = async (): Promise<void> => {
-      const savedState = await loadSessionState();
-      if (savedState) {
-        dispatch({ type: 'LOAD_STATE', state: savedState });
+    if (authLoading) {
+      return;
+    }
+
+    void (async () => {
+      setIsLoading(true);
+      try {
+        const savedState = await loadSessionState();
+        if (savedState) {
+          dispatch({ type: 'LOAD_STATE', state: savedState });
+        }
+        if (session?.user) {
+          try {
+            const ids = await getFavorites();
+            dispatch({ type: 'SET_FAVORITE_IDS', ids });
+          } catch {
+            // Mantener favoritos locales si falla la red o RLS
+          }
+        } else {
+          dispatch({ type: 'SET_FAVORITE_IDS', ids: [] });
+        }
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    };
-    loadState();
-  }, []);
+    })();
+  }, [session, authLoading]);
 
   // Auto-persistir en cada cambio de estado (omitir durante carga inicial)
   useEffect(() => {
@@ -92,7 +129,18 @@ export function SessionProvider({ children }: SessionProviderProps): JSX.Element
   }, []);
 
   const toggleFavorite = useCallback((id: string): void => {
-    dispatch({ type: 'TOGGLE_FAVORITE', id });
+    void (async () => {
+      try {
+        const added = await toggleFavoriteRemote(id);
+        dispatch({ type: 'SET_FAVORITE', id, favorited: added });
+      } catch (e) {
+        const message =
+          e instanceof Error && e.message === 'Not authenticated'
+            ? 'Sign in to save favorites.'
+            : 'Could not update favorites.';
+        Alert.alert('Error', message);
+      }
+    })();
   }, []);
 
   const isCompleted = useCallback(

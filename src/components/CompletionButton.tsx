@@ -85,14 +85,14 @@ export function CompletionButton({
               ✓
             </Animated.Text>
             <Text className="text-slate-900 font-bold text-base">
-              ¡Sesión Completada!
+              Session Completed!
             </Text>
           </>
         ) : (
           <>
             <Text className="text-white text-xl mr-2">🎾</Text>
             <Text className="text-white font-bold text-base">
-              Marcar como Completada
+              Mark as Completed
             </Text>
           </>
         )}

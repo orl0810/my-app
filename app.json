@@ -3,15 +3,26 @@
     "name": "my-app",
     "slug": "my-app",
     "version": "1.0.0",
-    "platforms": ["ios", "android"],
-    "assetBundlePatterns": ["**/*"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "d1c8b9c7-5a3b-4f0e-9c8a-2f1b6e5d7a8c"
+      }
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.orl0810.my-app"
     },
     "android": {
       "adaptiveIcon": {
@@ -44,8 +55,19 @@
       [
         "expo-build-properties",
         {
-          "android": { "enableProguardInReleaseBuilds": true },
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
+          },
           "ios": {}
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
         }
       ]
     ],
