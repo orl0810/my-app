@@ -82,6 +82,7 @@ export function OnboardingStepLevel({
   return (
     <SafeAreaView style={styles.wrapper} edges={["top", "bottom"]}>
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -102,29 +103,35 @@ export function OnboardingStepLevel({
                 key={level.id}
                 onPress={() => !isSubmitting && setSelectedLevel(level.id)}
                 style={({ pressed }) => [
-                  styles.card,
-                  isSelected && styles.cardSelected,
-                  pressed && styles.cardPressed,
+                  styles.cardHit,
+                  pressed && !isSubmitting && styles.cardPressed,
                 ]}
               >
-                <View style={styles.cardRow}>
-                  <View
-                    style={[
-                      styles.iconWrap,
-                      isSelected && styles.iconWrapSelected,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={level.icon}
-                      size={24}
-                      color={isSelected ? "#FFFFFF" : level.color}
-                    />
-                  </View>
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>{level.label}</Text>
-                    <Text style={styles.cardDescription}>
-                      {level.description}
-                    </Text>
+                <View
+                  style={[
+                    styles.cardFace,
+                    isSelected && styles.cardFaceSelected,
+                  ]}
+                >
+                  <View style={styles.cardRow}>
+                    <View
+                      style={[
+                        styles.iconWrap,
+                        isSelected && styles.iconWrapSelected,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={level.icon}
+                        size={24}
+                        color={isSelected ? "#FFFFFF" : level.color}
+                      />
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={styles.cardTitle}>{level.label}</Text>
+                      <Text style={styles.cardDescription}>
+                        {level.description}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </Pressable>
@@ -134,42 +141,61 @@ export function OnboardingStepLevel({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
-          onPress={onBack}
-          disabled={isSubmitting}
-          style={({ pressed }) => [
-            styles.buttonOutline,
-            (isSubmitting || pressed) && styles.buttonPressed,
-            isSubmitting && styles.buttonOutlineDisabled,
-          ]}
-        >
-          <Text style={styles.buttonOutlineText}>Back</Text>
-        </Pressable>
-        <Pressable
-          onPress={handleNext}
-          disabled={primaryDisabled || isSubmitting}
-          style={({ pressed }) => [
-            styles.buttonPrimary,
-            primaryDisabled && styles.buttonDisabled,
-            pressed &&
-              selectedLevel &&
-              !isSubmitting &&
-              styles.buttonPressed,
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text
-              style={[
-                styles.buttonPrimaryText,
-                primaryDisabled && styles.buttonPrimaryTextDisabled,
+        <View style={styles.footerButtonRow}>
+          <View style={styles.footerButtonSlot}>
+            <Pressable
+              onPress={onBack}
+              disabled={isSubmitting}
+              style={({ pressed }) => [
+                styles.footerButtonPressable,
+                (isSubmitting || pressed) && styles.buttonPressed,
               ]}
             >
-              Continue
-            </Text>
-          )}
-        </Pressable>
+              <View
+                style={[
+                  styles.buttonOutlineFace,
+                  isSubmitting && styles.buttonOutlineFaceDisabled,
+                ]}
+              >
+                <Text style={styles.buttonOutlineText}>Back</Text>
+              </View>
+            </Pressable>
+          </View>
+          <View style={styles.footerButtonSlot}>
+            <Pressable
+              onPress={handleNext}
+              disabled={primaryDisabled || isSubmitting}
+              style={({ pressed }) => [
+                styles.footerButtonPressable,
+                pressed &&
+                  selectedLevel &&
+                  !isSubmitting &&
+                  !primaryDisabled &&
+                  styles.buttonPressed,
+              ]}
+            >
+              <View
+                style={[
+                  styles.buttonPrimaryFace,
+                  primaryDisabled && styles.buttonPrimaryFaceDisabled,
+                ]}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.buttonPrimaryText,
+                      primaryDisabled && styles.buttonPrimaryTextDisabled,
+                    ]}
+                  >
+                    Continue
+                  </Text>
+                )}
+              </View>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -222,16 +248,20 @@ export default function OnboardingStepLevelScreen() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F3F4F6",
   },
   centered: {
     justifyContent: "center",
     alignItems: "center",
   },
+  scroll: {
+    flex: 1,
+  },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
   header: {
     marginBottom: 24,
@@ -254,19 +284,23 @@ const styles = StyleSheet.create({
   grid: {
     gap: 12,
   },
-  card: {
+  cardHit: {
+    borderRadius: 16,
+  },
+  cardFace: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: "#CBD5E1",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  cardSelected: {
+  cardFaceSelected: {
     borderWidth: 2,
     borderColor: "#2563EB",
     backgroundColor: "#EFF6FF",
@@ -302,54 +336,67 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   footer: {
-    flexDirection: "row",
-    gap: 12,
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: "#F8FAFC",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E2E8F0",
+    paddingTop: 14,
+    paddingBottom: 14,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
-  buttonOutline: {
+  footerButtonRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+  },
+  footerButtonSlot: {
     flex: 1,
+    minWidth: 0,
+  },
+  footerButtonPressable: {
+    flex: 1,
+    alignSelf: "stretch",
+  },
+  buttonOutlineFace: {
+    width: "100%",
+    minHeight: 52,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "#94A3B8",
-    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
+  buttonOutlineFaceDisabled: {
+    opacity: 0.45,
+  },
   buttonOutlineText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#334155",
+    color: "#111827",
   },
-  buttonOutlineDisabled: {
-    opacity: 0.5,
-  },
-  buttonPrimary: {
-    flex: 1,
+  buttonPrimaryFace: {
+    width: "100%",
+    minHeight: 52,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "#0F172A",
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0F172A",
+    backgroundColor: "#111827",
+  },
+  buttonPrimaryFaceDisabled: {
+    backgroundColor: "#E5E7EB",
   },
   buttonPrimaryText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  buttonDisabled: {
-    backgroundColor: "#F1F5F9",
-    borderColor: "#94A3B8",
-  },
   buttonPrimaryTextDisabled: {
-    color: "#475569",
+    color: "#6B7280",
+    fontWeight: "600",
   },
   buttonPressed: {
     opacity: 0.9,

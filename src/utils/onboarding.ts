@@ -50,6 +50,19 @@ export async function saveProfileLevel(level: string): Promise<void> {
   if (error) throw toErrorFromSupabase(error);
 }
 
+/** Persists onboarding goal ids (e.g. technique, fitness) on profiles.goals. */
+export async function saveProfileGoals(goals: string[]): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.rpc("set_user_profile_goals", {
+    p_goals: goals,
+  });
+  if (error) throw toErrorFromSupabase(error);
+}
+
 export async function completeOnboarding(): Promise<void> {
   const {
     data: { session },

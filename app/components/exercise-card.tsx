@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   createElement,
   useCallback,
@@ -19,13 +20,20 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type LayoutChangeEvent,
+  type ViewStyle,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
+  Extrapolation,
+  interpolate,
   interpolateColor,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
+  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -134,10 +142,6 @@ const exerciseCardPalette = {
     title: "#111827",
     description: "#4B5563",
     descriptionLabel: "#15803D",
-    completeDoneBg: "#DCFCE7",
-    completeIdleBg: "#F3F4F6",
-    checkDone: "#16A34A",
-    checkIdle: "#9CA3AF",
     badgeBlueBorder: "#BFDBFE",
     badgeBlueBg: "#EFF6FF",
     badgeBlueText: "#1D4ED8",
@@ -165,10 +169,6 @@ const exerciseCardPalette = {
     title: "#ffffff",
     description: "#a3a3a3",
     descriptionLabel: "#86efac",
-    completeDoneBg: "#14532d",
-    completeIdleBg: "#262626",
-    checkDone: "#4ade80",
-    checkIdle: "#737373",
     badgeBlueBorder: "#1e40af",
     badgeBlueBg: "#172554",
     badgeBlueText: "#93c5fd",
@@ -280,9 +280,13 @@ function createExerciseCardStyles(p: ExerciseCardPalette) {
     titleRow: {
       flexDirection: "row",
       alignItems: "flex-start",
-      justifyContent: "space-between",
+      justifyContent: "flex-start",
       gap: 12,
       marginBottom: 12,
+    },
+    sliderWrap: {
+      width: "100%",
+      marginTop: 16,
     },
     titleLeft: {
       flex: 1,
@@ -329,16 +333,6 @@ function createExerciseCardStyles(p: ExerciseCardPalette) {
       fontSize: 14,
       color: p.description,
       lineHeight: 22,
-    },
-    completeBtn: {
-      padding: 8,
-      borderRadius: 10,
-    },
-    completeBtnDone: {
-      backgroundColor: p.completeDoneBg,
-    },
-    completeBtnIdle: {
-      backgroundColor: p.completeIdleBg,
     },
     badgeRow: {
       flexDirection: "row",
@@ -423,6 +417,305 @@ function createExerciseCardStyles(p: ExerciseCardPalette) {
       backgroundColor: "rgba(0,0,0,0.45)",
     },
   });
+}
+
+const COMPLETE_SLIDER_THUMB = 46;
+const COMPLETE_SLIDER_HEIGHT = 54;
+const COMPLETE_SLIDER_PAD = 5;
+const COMPLETE_SLIDE_THRESHOLD = 0.82;
+
+const completeSliderStyles = StyleSheet.create({
+  track: {
+    width: "100%",
+    height: COMPLETE_SLIDER_HEIGHT,
+    borderRadius: COMPLETE_SLIDER_HEIGHT / 2,
+    overflow: "hidden",
+    position: "relative",
+  },
+  labelCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  hint: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.35,
+  },
+  doneLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.25,
+  },
+  shimmerClip: {
+    position: "relative",
+    maxWidth: "100%",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: COMPLETE_SLIDER_THUMB + 24,
+  },
+  shimmerBand: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 76,
+  },
+  thumb: {
+    position: "absolute",
+    width: COMPLETE_SLIDER_THUMB,
+    height: COMPLETE_SLIDER_THUMB,
+    borderRadius: COMPLETE_SLIDER_THUMB / 2,
+    top: (COMPLETE_SLIDER_HEIGHT - COMPLETE_SLIDER_THUMB) / 2,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+});
+
+function ExerciseCompleteSlider({
+  exerciseId,
+  completed,
+  onToggle,
+}: {
+  exerciseId: string;
+  completed: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const colorScheme = useColorScheme() ?? "light";
+  const isDark = colorScheme === "dark";
+
+  const translateX = useSharedValue(0);
+  const trackWidth = useSharedValue(0);
+  const maxTranslate = useSharedValue(0);
+  const shimmerPhase = useSharedValue(0);
+  const gestureStartX = useSharedValue(0);
+  const gestureCommitted = useSharedValue(0);
+
+  useEffect(() => {
+    if (!completed) {
+      translateX.value = 0;
+    }
+  }, [completed, translateX]);
+
+  useEffect(() => {
+    shimmerPhase.value = withRepeat(
+      withTiming(1, { duration: 2400, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, [shimmerPhase]);
+
+  const completeSwipe = useCallback(() => {
+    onToggle(exerciseId);
+  }, [exerciseId, onToggle]);
+
+  const onTrackLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const w = e.nativeEvent.layout.width;
+      trackWidth.value = w;
+      maxTranslate.value = Math.max(
+        0,
+        w - COMPLETE_SLIDER_THUMB - COMPLETE_SLIDER_PAD * 2
+      );
+    },
+    [maxTranslate, trackWidth]
+  );
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-14, 14])
+        .failOffsetY([-20, 20])
+        .onBegin(() => {
+          gestureCommitted.value = 0;
+          gestureStartX.value = translateX.value;
+        })
+        .onUpdate((e) => {
+          const max = maxTranslate.value;
+          if (max <= 0) return;
+          const next = gestureStartX.value + e.translationX;
+          translateX.value = Math.min(max, Math.max(0, next));
+        })
+        .onEnd(() => {
+          const max = maxTranslate.value;
+          const springBack = { damping: 20, stiffness: 240 };
+          if (max <= 0) {
+            translateX.value = withSpring(0, springBack);
+            return;
+          }
+          const threshold = max * COMPLETE_SLIDE_THRESHOLD;
+          if (translateX.value >= threshold) {
+            translateX.value = withSpring(max, {
+              damping: 18,
+              stiffness: 200,
+            });
+            if (gestureCommitted.value === 0) {
+              gestureCommitted.value = 1;
+              runOnJS(completeSwipe)();
+            }
+          } else {
+            translateX.value = withSpring(0, springBack);
+          }
+        }),
+    [completeSwipe]
+  );
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const hintOpacityStyle = useAnimatedStyle(() => {
+    const max = maxTranslate.value;
+    if (max <= 0) {
+      return { opacity: 1 };
+    }
+    return {
+      opacity: interpolate(
+        translateX.value,
+        [0, max * 0.55],
+        [1, 0.22],
+        Extrapolation.CLAMP
+      ),
+    };
+  });
+
+  const shimmerBandStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: interpolate(
+          shimmerPhase.value,
+          [0, 1],
+          [-80, trackWidth.value + 80]
+        ),
+      },
+    ],
+  }));
+
+  const pendingBlue = isDark
+    ? (["#172554", "#1d4ed8", "#2563eb"] as const)
+    : (["#93c5fd", "#3b82f6", "#1d4ed8"] as const);
+  const doneGreen = isDark
+    ? (["#14532d", "#16a34a", "#22c55e"] as const)
+    : (["#86efac", "#22c55e", "#15803d"] as const);
+
+  const webTrackCursor =
+    Platform.OS === "web"
+      ? ({
+          cursor: completed ? "pointer" : "grab",
+        } as unknown as ViewStyle)
+      : {};
+
+  const webThumbCursor =
+    Platform.OS === "web"
+      ? ({ cursor: "grab" } as unknown as ViewStyle)
+      : {};
+
+  const webNoSelect =
+    Platform.OS === "web"
+      ? ({
+          userSelect: "none",
+        } as unknown as ViewStyle)
+      : {};
+
+  if (completed) {
+    return (
+      <Pressable
+        onPress={() => {
+          onToggle(exerciseId);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Mark as not completed"
+        style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1, width: "100%" }]}
+      >
+        <View
+          style={[
+            completeSliderStyles.track,
+            webTrackCursor,
+            webNoSelect,
+          ]}
+          onLayout={onTrackLayout}
+        >
+          <LinearGradient
+            colors={[...doneGreen]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={completeSliderStyles.labelCenter} pointerEvents="none">
+            <Text style={completeSliderStyles.doneLabel}>✓ Completed.</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View
+      style={[completeSliderStyles.track, webTrackCursor, webNoSelect]}
+      onLayout={onTrackLayout}
+      accessibilityLabel="Swipe to complete"
+    >
+      <LinearGradient
+        colors={[...pendingBlue]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={completeSliderStyles.labelCenter} pointerEvents="none">
+        <Animated.View
+          style={[completeSliderStyles.shimmerClip, hintOpacityStyle]}
+        >
+          <Text style={completeSliderStyles.hint}>Swipe to complete</Text>
+          <Animated.View
+            pointerEvents="none"
+            style={[completeSliderStyles.shimmerBand, shimmerBandStyle]}
+          >
+            <LinearGradient
+              colors={[
+                "rgba(255,255,255,0)",
+                "rgba(255,255,255,0.72)",
+                "rgba(255,255,255,0)",
+              ]}
+              locations={[0.15, 0.5, 0.85]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </Animated.View>
+        </Animated.View>
+      </View>
+
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          style={[
+            completeSliderStyles.thumb,
+            { left: COMPLETE_SLIDER_PAD },
+            thumbStyle,
+            webThumbCursor,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Swipe to complete"
+        >
+          <MaterialIcons
+            name="chevron-right"
+            size={28}
+            color={isDark ? "#60a5fa" : "#2563eb"}
+          />
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
 }
 
 export function ExerciseCard({
@@ -632,31 +925,6 @@ export function ExerciseCard({
                 ) : null}
               </View>
             </View>
-            {onToggleComplete ? (
-              <Pressable
-                onPress={() => onToggleComplete(exercise.id)}
-                style={[
-                  styles.completeBtn,
-                  exercise.completed
-                    ? styles.completeBtnDone
-                    : styles.completeBtnIdle,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  exercise.completed
-                    ? "Marcar como no completado"
-                    : "Marcar como completado"
-                }
-              >
-                <MaterialIcons
-                  name="check-circle"
-                  size={22}
-                  color={
-                    exercise.completed ? p.checkDone : p.checkIdle
-                  }
-                />
-              </Pressable>
-            ) : null}
           </View>
 
           <View style={styles.badgeRow}>
@@ -690,6 +958,16 @@ export function ExerciseCard({
                   • {tip}
                 </Text>
               ))}
+            </View>
+          ) : null}
+
+          {onToggleComplete ? (
+            <View style={styles.sliderWrap}>
+              <ExerciseCompleteSlider
+                exerciseId={exercise.id}
+                completed={!!exercise.completed}
+                onToggle={onToggleComplete}
+              />
             </View>
           ) : null}
         </View>

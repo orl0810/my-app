@@ -1,17 +1,35 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+
+const PAYWALL_FEATURES = [
+  {
+    title: 'Session plan tailored to your core level',
+    description:
+      'The coach analyzes your history, level, and goals to suggest what to train each day. No more guessing what session to do.',
+  },
+  {
+    title: 'Automatic core difficulty progression',
+    description:
+      'If you mark sessions as "easy" repeatedly, the coach will increase the level. If you mark them as "hard", the coach will adjust the pace. The app learns with you.',
+  },
+  {
+    title: 'Sessions for training alone or in pairs',
+    description:
+      "The coach detects whether you'll be training alone or with a partner and adapts the exercises accordingly. There's no point in suggesting multi-ball exercises if you don't have anyone to use them.",
+  },
+]
 
 const FEATURES = {
   ai_coach: {
     title: 'Coach IA personalizado',
-    description: 'Recibe análisis de tu progreso y sesiones adaptadas a tu nivel cada semana.',
-    price: '$4.99 / mes',
-    cta: 'Quiero acceso anticipado',
+    description: 'Receive analysis of your progress and sessions adapted to your level each week.',
+    price: '$4.99 / month',
+    cta: 'Get early access',
   },
   advanced_stats: {
-    title: 'Estadísticas avanzadas',
-    description: 'Ve tu evolución por técnica, racha de entrenamiento y comparativa de nivel.',
-    price: '$4.99 / mes',
-    cta: 'Desbloquear estadísticas',
+    title: 'Advanced statistics',
+    description: 'See your progress by technique, training streak and level comparison.',
+    price: '$4.99 / month',
+    cta: 'Unlock advanced statistics',
   },
 }
 
@@ -22,34 +40,50 @@ export function PaywallModal({ visible, feature, onUpgrade, onDismiss }) {
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <View style={styles.card}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            bounces={false}
+          >
+            {/* Badge */}
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Exclusive beta</Text>
+            </View>
 
-          {/* Badge */}
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Beta exclusiva</Text>
-          </View>
+            <Text style={styles.title}>{content.title}</Text>
+            <Text style={styles.description}>{content.description}</Text>
 
-          <Text style={styles.title}>{content.title}</Text>
-          <Text style={styles.description}>{content.description}</Text>
+            <View style={styles.featuresList}>
+              {PAYWALL_FEATURES.map((item) => (
+                <View key={item.title} style={styles.featureRow}>
+                  <Text style={styles.featureBullet}>✓</Text>
+                  <View style={styles.featureTextCol}>
+                    <Text style={styles.featureTitle}>{item.title}</Text>
+                    <Text style={styles.featureDescription}>{item.description}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
 
-          {/* Precio simulado */}
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{content.price}</Text>
-            <Text style={styles.priceSub}>· sin cobro durante la beta</Text>
-          </View>
+            {/* Precio simulado */}
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>{content.price}</Text>
+              <Text style={styles.priceSub}>· no charge during beta</Text>
+            </View>
 
-          {/* CTA principal — este es el click que mides */}
-          <Pressable style={styles.btnPrimary} onPress={onUpgrade}>
-            <Text style={styles.btnPrimaryText}>{content.cta} →</Text>
-          </Pressable>
+            {/* CTA principal — este es el click que mides */}
+            <Pressable style={styles.btnPrimary} onPress={onUpgrade}>
+              <Text style={styles.btnPrimaryText}>{content.cta} →</Text>
+            </Pressable>
 
-          <Pressable style={styles.btnSecondary} onPress={onDismiss}>
-            <Text style={styles.btnSecondaryText}>Ahora no</Text>
-          </Pressable>
+            <Pressable style={styles.btnSecondary} onPress={onDismiss}>
+              <Text style={styles.btnSecondaryText}>Not now</Text>
+            </Pressable>
 
-          <Text style={styles.disclaimer}>
-            No se realizará ningún cobro. Solo queremos saber si esto te interesa.
-          </Text>
-
+            <Text style={styles.disclaimer}>
+              No will be charged. We just want to know if this interests you.
+            </Text>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -68,7 +102,41 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
+    maxHeight: '92%',
+  },
+  scrollContent: {
     gap: 12,
+    paddingBottom: 8,
+  },
+  featuresList: {
+    gap: 16,
+    marginTop: 4,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  featureBullet: {
+    fontSize: 14,
+    color: '#1D9E75',
+    fontWeight: '700',
+    marginTop: 3,
+    lineHeight: 20,
+  },
+  featureTextCol: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 21,
   },
   badge: {
     alignSelf: 'flex-start',

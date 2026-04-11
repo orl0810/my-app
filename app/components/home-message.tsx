@@ -2,8 +2,12 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+
+/** Extra space below the status bar / notch so the header does not feel glued to the top. */
+const FULL_BLEED_TOP_EXTRA = 12;
 
 export type MotivationalMessageVariant = "card" | "fullBleed";
 
@@ -67,12 +71,14 @@ export function MotivationalMessage({
 }: MotivationalMessageProps) {
   const colorScheme = useColorScheme() ?? "light";
   const isDark = colorScheme === "dark";
+  const insets = useSafeAreaInsets();
   const { displayed, isComplete, cursorVisible } = useTypingStream(message, animateTyping);
 
   if (variant === "fullBleed") {
     const quoteTint = isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.1)";
+    const fullBleedPaddingTop = Math.max(insets.top, 10) + FULL_BLEED_TOP_EXTRA;
     return (
-      <View style={styles.fullBleed}>
+      <View style={[styles.fullBleed, { paddingTop: fullBleedPaddingTop }]}>
         <View style={styles.overlayContainer} pointerEvents="none">
           <View style={styles.quoteIconContainerFullBleed}>
             <MaterialIcons
@@ -104,7 +110,7 @@ export function MotivationalMessage({
                   {author}
                 </Text>
                 <Text style={[styles.authorTitleFullBleed, isDark && styles.authorTitleDark]}>
-                  Powererd with IA
+                IA Powererd
                 </Text>
               </View>
             </View>
@@ -189,10 +195,9 @@ const styles = StyleSheet.create({
   fullBleed: {
     flex: 1,
     width: "100%",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 14,
+    paddingBottom: 10,
   },
   contentFullBleed: {
     position: "relative",

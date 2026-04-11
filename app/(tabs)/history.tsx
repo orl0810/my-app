@@ -810,6 +810,12 @@ export default function HistoryScreen() {
                     const p = historyCardPalette(diffKey, isDark);
                     const diffLabel = difficultyLabel(row.difficulty);
                     const when = formatCompletedAt(row.completed_at);
+                    const sessionRate =
+                      typeof row.rate === "number" &&
+                      row.rate >= 1 &&
+                      row.rate <= 3
+                        ? row.rate
+                        : null;
 
                     return (
                       <View key={row.id} style={styles.cardContainer}>
@@ -831,19 +837,57 @@ export default function HistoryScreen() {
                                   </Text>
                                 </View>
                               ) : null}
+                              {sessionRate != null ? (
+                                <View
+                                  style={[
+                                    styles.badge,
+                                    { flexDirection: "row", gap: 2 },
+                                  ]}
+                                >
+                                  {[1, 2, 3].map((i) => (
+                                    <MaterialIcons
+                                      key={i}
+                                      name={
+                                        i <= sessionRate
+                                          ? "star"
+                                          : "star-border"
+                                      }
+                                      size={13}
+                                      color={p.badgeText}
+                                    />
+                                  ))}
+                                </View>
+                              ) : null}
                             </View>
                           </View>
 
-                          {when ? (
+                          {when || row.comments?.trim() ? (
                             <View style={styles.details}>
-                              <View style={styles.detailRow}>
-                                <MaterialIcons
-                                  name="event"
-                                  size={15}
-                                  color={p.detailMuted}
-                                />
-                                <Text style={styles.detailText}>{when}</Text>
-                              </View>
+                              {when ? (
+                                <View style={styles.detailRow}>
+                                  <MaterialIcons
+                                    name="event"
+                                    size={15}
+                                    color={p.detailMuted}
+                                  />
+                                  <Text style={styles.detailText}>{when}</Text>
+                                </View>
+                              ) : null}
+                              {row.comments?.trim() ? (
+                                <View style={styles.detailRow}>
+                                  <MaterialIcons
+                                    name="chat-bubble-outline"
+                                    size={15}
+                                    color={p.detailMuted}
+                                  />
+                                  <Text
+                                    style={[styles.detailText, { flex: 1 }]}
+                                    numberOfLines={4}
+                                  >
+                                    {row.comments.trim()}
+                                  </Text>
+                                </View>
+                              ) : null}
                             </View>
                           ) : null}
 

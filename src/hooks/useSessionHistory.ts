@@ -21,6 +21,9 @@ function addDays(d: Date, days: number): Date {
 /** Matches `session_history.difficulty` check constraint */
 export type SessionDifficulty = "easy" | "good" | "hard";
 
+/** Matches `session_history.rate` check constraint (1–3) */
+export type SessionRate = 1 | 2 | 3;
+
 export interface SessionHistoryRow {
   id: string;
   user_id: string;
@@ -29,6 +32,8 @@ export interface SessionHistoryRow {
   completed_at: string;
   difficulty: SessionDifficulty | null;
   duration_minutes: number | null;
+  rate: SessionRate | null;
+  comments: string | null;
 }
 
 export interface CompleteSessionInput {
@@ -37,6 +42,8 @@ export interface CompleteSessionInput {
   /** Post-session feedback; omit or null if not collected */
   difficulty?: SessionDifficulty | null;
   durationMinutes?: number | null;
+  rate?: SessionRate | null;
+  comments?: string | null;
 }
 
 /** Page size for history list + `loadMore` */
@@ -208,6 +215,8 @@ export function useSessionHistory(): UseSessionHistoryReturn {
       sessionTitle,
       difficulty = null,
       durationMinutes = null,
+      rate = null,
+      comments = null,
     }: CompleteSessionInput) => {
       const {
         data: { user },
@@ -228,6 +237,8 @@ export function useSessionHistory(): UseSessionHistoryReturn {
           session_title: sessionTitle,
           difficulty,
           duration_minutes: durationMinutes,
+          rate,
+          comments,
         })
         .select()
         .single();
