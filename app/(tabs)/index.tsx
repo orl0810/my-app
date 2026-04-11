@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -14,10 +15,76 @@ import ParallaxScrollView from "@/components/parallax-scroll-view";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useEffect, useMemo, useState } from "react";
+import { PaywallModal } from "@/src/components/PaywallModal";
+import { useAuth } from "@/src/context/AuthContext";
+import { usePaywall } from "@/src/hooks/usePaywall";
+import {
+  recommendSession,
+  type RecommendSessionHistoryEntry,
+} from "@/src/utils/recommendSession";
+import { supabase } from "@/src/utils/supabase";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { MotivationalMessage } from "../components/home-message";
 import { HomeStatsCards } from "../components/home-stats-cards";
 import { SessionCard, type TrainingSession } from "../components/session-card";
+
+/** Vivid emerald for the parallax IA CTA (icons + label). */
+const PARALLAX_IA_ACCENT = "#3B82F6";
+
+/** Diagonal shine sweep across the IA CTA (pixels). */
+const IA_SHINE_LOOP_MS = 2800;
+
+function IaAnalysisButtonShine() {
+  const t = useSharedValue(0);
+
+  useEffect(() => {
+    t.value = withRepeat(
+      withTiming(1, {
+        duration: IA_SHINE_LOOP_MS,
+        easing: Easing.inOut(Easing.cubic),
+      }),
+      -1,
+      false
+    );
+  }, [t]);
+
+  const shineStyle = useAnimatedStyle(() => {
+    const x = interpolate(t.value, [0, 1], [-56, 320]);
+    const opacity = interpolate(t.value, [0, 0.06, 0.12, 0.88, 0.94, 1], [0, 0.4, 1, 1, 0.35, 0]);
+    return {
+      opacity,
+      transform: [{ translateX: x }, { rotate: "-22deg" }],
+    };
+  });
+
+  return (
+    <Animated.View pointerEvents="none" style={[iaShineStyles.sweep, shineStyle]} />
+  );
+}
+
+const iaShineStyles = StyleSheet.create({
+  sweep: {
+    position: "absolute",
+    top: -12,
+    left: 0,
+    width: 48,
+    height: 76,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    shadowColor: "#ffffff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 16,
+  },
+});
 
 const LEVEL_OPTIONS = ["Beginner", "Intermediate", "Advanced", "All levels"] as const;
 
@@ -31,8 +98,8 @@ const OBJECTIVE_OPTIONS = ["Technique", "Physical fitness", "Strategy", "Precisi
 
 const HOME_MOTIVATION = {
   message:
-    "Success in tennis is not only about winning—it is about improving every day. Each session is a chance to be better than yesterday.",
-  author: "Carlos Martínez",
+    "Each session is a chance to be better than yesterday - complete 3 sessions to improve your level.",
+  author: "Trainer",
   authorImage: "https://example.com/author.jpg",
 } as const;
 
@@ -476,9 +543,68 @@ function createHomeSessionsStyles(p: HomeSessionsPalette) {
     parallaxHeaderMessage: {
       flex: 1,
       width: "100%",
+      flexDirection: "column",
+    },
+    parallaxHeaderMessageBody: {
+      flex: 1,
+      minHeight: 0,
+      width: "100%",
+    },
+    parallaxHeaderCtaRow: {
+      alignSelf: "stretch",
+      alignItems: "flex-end",
+      paddingHorizontal: 24,
+      paddingTop: 14,
+      paddingBottom: 10,
+    },
+    parallaxIaButton: {
+      position: "relative",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      flexWrap: "nowrap",
+      minHeight: 48,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: "rgba(16, 185, 129, 0.45)",
+      backgroundColor: "#FFFFFF",
+      overflow: "hidden",
+      shadowColor: "#059669",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.28,
+      shadowRadius: 12,
+      elevation: 10,
+    },
+    parallaxIaButtonInner: {
+      position: "relative",
+      zIndex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 1,
+      gap: 6,
+    },
+    parallaxIaButtonText: {
+      color: PARALLAX_IA_ACCENT,
+      fontSize: 15,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+      lineHeight: 20,
     },
     pressedOpacity: {
       opacity: 0.88,
+    },
+    parallaxIaButtonPressed: {
+      backgroundColor: "#D1FAE5",
+      borderColor: "rgba(16, 185, 129, 0.65)",
+      transform: [{ scale: 0.98 }],
+    },
+    recommendLabel: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: p.filterGroupTitle,
     },
   });
 }
@@ -495,9 +621,19 @@ export default function HomeScreen() {
   );
 
   const router = useRouter();
+  const { user } = useAuth();
+  const {
+    paywallVisible,
+    currentFeature,
+    showPaywall,
+    handleUpgradeTap,
+    handleDismiss,
+  } = usePaywall();
   const [upcomingSessions, setUpcomingSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recHistory, setRecHistory] = useState<RecommendSessionHistoryEntry[]>([]);
+  const [profileLevelForRec, setProfileLevelForRec] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -530,6 +666,52 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  const loadRecommendationContext = useCallback(async () => {
+    if (!user?.id) {
+      setRecHistory([]);
+      setProfileLevelForRec(null);
+      return;
+    }
+
+    const [profileRes, historyRes] = await Promise.all([
+      supabase.from("profiles").select("level").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("session_history")
+        .select("session_id, completed_at")
+        .order("completed_at", { ascending: false }),
+    ]);
+
+    const rawLevel = profileRes.data?.level;
+    setProfileLevelForRec(
+      typeof rawLevel === "string" && rawLevel.trim() ? rawLevel.trim() : null,
+    );
+
+    if (historyRes.error) {
+      setRecHistory([]);
+      return;
+    }
+    const rows = historyRes.data ?? [];
+    setRecHistory(
+      rows.filter(
+        (r): r is RecommendSessionHistoryEntry =>
+          typeof r.session_id === "string" &&
+          r.session_id.length > 0 &&
+          typeof r.completed_at === "string",
+      ),
+    );
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadRecommendationContext();
+  }, [loadRecommendationContext]);
+
+  const recommendedSession = useMemo(() => {
+    if (upcomingSessions.length === 0) return null;
+    return recommendSession(upcomingSessions, recHistory, {
+      level: profileLevelForRec,
+    });
+  }, [upcomingSessions, recHistory, profileLevelForRec]);
 
   const filteredSessions = useMemo(() => {
     return upcomingSessions.filter((session) => {
@@ -567,16 +749,46 @@ export default function HomeScreen() {
   const showFilterPanel = showFilters || hasActiveFilters;
 
   return (
+    <Fragment>
     <ParallaxScrollView
       headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
       headerImage={
         <View style={styles.parallaxHeaderMessage}>
-          <MotivationalMessage
-            variant="fullBleed"
-            message={HOME_MOTIVATION.message}
-            author={HOME_MOTIVATION.author}
-            authorImage={HOME_MOTIVATION.authorImage}
-          />
+          <View style={styles.parallaxHeaderMessageBody}>
+            <MotivationalMessage
+              variant="fullBleed"
+              message={HOME_MOTIVATION.message}
+              author={HOME_MOTIVATION.author}
+              authorImage={HOME_MOTIVATION.authorImage}
+            />
+          </View>
+          <View style={styles.parallaxHeaderCtaRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Get IA analysis"
+              android_ripple={{ color: "rgba(16, 185, 129, 0.2)" }}
+              onPress={() => showPaywall("ai_coach")}
+              style={({ pressed }) => [
+                styles.parallaxIaButton,
+                pressed && styles.parallaxIaButtonPressed,
+              ]}
+            >
+              <IaAnalysisButtonShine />
+              <View style={styles.parallaxIaButtonInner}>
+                <MaterialIcons name="auto-awesome" size={20} color={PARALLAX_IA_ACCENT} />
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.parallaxIaButtonText,
+                    Platform.OS === "android" ? { includeFontPadding: false } : null,
+                  ]}
+                >
+                  Get IA analysis
+                </Text>
+                <MaterialIcons name="chevron-right" size={20} color={PARALLAX_IA_ACCENT} />
+              </View>
+            </Pressable>
+          </View>
         </View>
       }
     >
@@ -584,6 +796,13 @@ export default function HomeScreen() {
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
       </ThemedView>
+
+      {!loading && !error && recommendedSession ? (
+        <ThemedView style={styles.stepContainer}>
+          <Text style={styles.recommendLabel}>Recommended for you today:</Text>
+          <SessionCard session={recommendedSession} />
+        </ThemedView>
+      ) : null}
 
       {!loading && !error ? (
         <ThemedView style={styles.stepContainer}>
@@ -797,5 +1016,12 @@ export default function HomeScreen() {
         </View>
       </View>
     </ParallaxScrollView>
+    <PaywallModal
+      visible={paywallVisible}
+      feature={currentFeature ?? "ai_coach"}
+      onUpgrade={handleUpgradeTap}
+      onDismiss={handleDismiss}
+    />
+    </Fragment>
   );
 }

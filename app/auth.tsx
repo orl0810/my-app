@@ -36,7 +36,7 @@ export default function AuthScreen(): ReactElement {
         Alert.alert("Error", error.message);
         return;
       }
-      router.replace("/(tabs)");
+      router.replace("/");
     })();
   };
 
@@ -53,7 +53,7 @@ export default function AuthScreen(): ReactElement {
         return;
       }
       if (data.session) {
-        router.replace("/(tabs)");
+        router.replace("/");
       } else {
         Alert.alert(
           "Check your email",

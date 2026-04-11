@@ -36,7 +36,10 @@ function RootLayoutInner(): ReactElement {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="auth" />
+          <Stack.Screen name="onboarding" />
           <Stack.Screen name="onboarding-step-welcome" />
+          <Stack.Screen name="onboarding-step-level" />
+          <Stack.Screen name="onboarding-step-goals" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="session/[sessionId]" />
           <Stack.Screen

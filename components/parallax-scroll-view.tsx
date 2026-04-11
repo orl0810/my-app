@@ -1,17 +1,17 @@
 import type { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
-  interpolate,
-  useAnimatedRef,
-  useAnimatedStyle,
-  useScrollOffset,
+    interpolate,
+    useAnimatedRef,
+    useAnimatedStyle,
+    useScrollOffset,
 } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
-const HEADER_HEIGHT = 320;
+const HEADER_HEIGHT = 288;
 
 type Props = PropsWithChildren<{
   headerImage: ReactElement;

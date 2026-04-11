@@ -10,11 +10,18 @@ import {
 } from "react";
 
 import { supabase } from "@/src/utils/supabase";
+import {
+  clearOnboardingFlowStep,
+  getOnboardingStatus,
+} from "@/src/utils/onboarding";
 
 export interface AuthContextValue {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  onboardingCompleted: boolean;
+  markOnboardingCompleted: () => void;
+  refreshOnboardingStatus: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -26,7 +33,11 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps): ReactElement {
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [authReady, setAuthReady] = useState<boolean>(false);
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
+  const [onboardingReady, setOnboardingReady] = useState<boolean>(false);
+
+  const isLoading = !authReady || (!!session?.user && !onboardingReady);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,7 +45,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     void supabase.auth.getSession().then(({ data: { session: next } }) => {
       if (!cancelled) {
         setSession(next);
-        setIsLoading(false);
+        setAuthReady(true);
       }
     });
 
@@ -50,7 +61,45 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!session?.user) {
+      setOnboardingCompleted(false);
+      setOnboardingReady(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setOnboardingReady(false);
+    void getOnboardingStatus().then((done) => {
+      if (!cancelled) {
+        setOnboardingCompleted(done);
+        setOnboardingReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
+
+  const markOnboardingCompleted = useCallback((): void => {
+    setOnboardingCompleted(true);
+  }, []);
+
+  const refreshOnboardingStatus = useCallback(async (): Promise<void> => {
+    if (!session?.user) {
+      setOnboardingCompleted(false);
+      return;
+    }
+    const done = await getOnboardingStatus();
+    setOnboardingCompleted(done);
+  }, [session?.user]);
+
   const signOut = useCallback(async (): Promise<void> => {
+    await clearOnboardingFlowStep();
     await supabase.auth.signOut();
   }, []);
 
@@ -58,6 +107,9 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     session,
     user: session?.user ?? null,
     isLoading,
+    onboardingCompleted,
+    markOnboardingCompleted,
+    refreshOnboardingStatus,
     signOut,
   };
 

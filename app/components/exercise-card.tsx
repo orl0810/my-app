@@ -2,31 +2,31 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
 import {
-    createElement,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import Animated, {
-    Easing,
-    interpolateColor,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withTiming,
+  Easing,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -273,14 +273,6 @@ function createExerciseCardStyles(p: ExerciseCardPalette) {
     playIcon: {
       marginLeft: 4,
     },
-    embedWrap: {
-      flex: 1,
-      width: "100%",
-      minHeight: 180,
-    },
-    embedInTile: {
-      ...StyleSheet.absoluteFillObject,
-    },
     body: {
       flex: 1,
       minWidth: 0,
@@ -482,7 +474,6 @@ export function ExerciseCard({
     };
   }, [borderPulse, glowColor]);
 
-  const [showVideo, setShowVideo] = useState(false);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
@@ -490,6 +481,7 @@ export function ExerciseCard({
   const isWideLayout = width >= 768;
   const insets = useSafeAreaInsets();
   const videoRef = useRef<InstanceType<typeof Video> | null>(null);
+  const webVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const videoUrls = useMemo(
     () =>
@@ -506,35 +498,39 @@ export function ExerciseCard({
   const activeVideoUri = videoUrls[safeActiveIndex] ?? "";
 
   const closeVideoModal = useCallback(async () => {
-    await videoRef.current?.pauseAsync();
+    if (Platform.OS === "web") {
+      webVideoRef.current?.pause();
+    } else {
+      await videoRef.current?.pauseAsync();
+    }
     setVideoModalVisible(false);
     setVideoLoading(false);
   }, []);
 
   const openVideoAt = useCallback((videoIndex: number) => {
     setActiveVideoIndex(videoIndex);
-    if (Platform.OS === "web") {
-      setShowVideo(true);
-    } else {
-      setVideoModalVisible(true);
-    }
+    setVideoModalVisible(true);
   }, []);
 
   const tileWidth = Math.min(width * 0.72, 280);
 
-  const iframeProps = {
-    style: {
+  const webModalVideoStyle = useMemo(
+    () => ({
+      position: "absolute" as const,
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
       width: "100%" as const,
       height: "100%" as const,
-      border: "none" as const,
-    },
-    allow:
-      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
-    allowFullScreen: true,
-  };
+      objectFit: "contain" as const,
+      backgroundColor: "#000",
+    }),
+    []
+  );
 
   return (
-    <Animated.View style={[styles.card, animatedOutlineStyle]}>
+    <Animated.View style={[styles.card]}>
       <View style={[styles.row, isWideLayout && styles.rowWide]}>
         <View style={[styles.mediaColumn, isWideLayout && styles.mediaColumnWide]}>
           {videoUrls.length === 0 ? (
@@ -543,42 +539,33 @@ export function ExerciseCard({
             </View>
           ) : videoUrls.length === 1 ? (
             <View style={styles.aspectBox}>
-              {!showVideo || Platform.OS !== "web" ? (
-                <View style={styles.thumbnailWrap}>
-                  <Image
-                    source={{
-                      uri: thumbnailUriForExercise(exercise, 0, videoUrls[0]),
-                    }}
-                    style={styles.thumbnail}
-                    contentFit="cover"
-                    accessibilityLabel={exercise.title}
-                  />
-                  <Pressable
-                    style={styles.playOverlay}
-                    onPress={() => {
-                      openVideoAt(0);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Reproducir video"
-                  >
-                    <View style={styles.playCircle}>
-                      <MaterialIcons
-                        name="play-arrow"
-                        size={32}
-                        color={p.primary}
-                        style={styles.playIcon}
-                      />
-                    </View>
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={styles.embedWrap}>
-                  {createElement("iframe", {
-                    ...iframeProps,
-                    src: videoUrls[0],
-                  })}
-                </View>
-              )}
+              <View style={styles.thumbnailWrap}>
+                <Image
+                  source={{
+                    uri: thumbnailUriForExercise(exercise, 0, videoUrls[0]),
+                  }}
+                  style={styles.thumbnail}
+                  contentFit="cover"
+                  accessibilityLabel={exercise.title}
+                />
+                <Pressable
+                  style={styles.playOverlay}
+                  onPress={() => {
+                    openVideoAt(0);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reproducir video"
+                >
+                  <View style={styles.playCircle}>
+                    <MaterialIcons
+                      name="play-arrow"
+                      size={32}
+                      color={p.primary}
+                      style={styles.playIcon}
+                    />
+                  </View>
+                </Pressable>
+              </View>
             </View>
           ) : (
             <ScrollView
@@ -588,50 +575,37 @@ export function ExerciseCard({
             >
               {videoUrls.map((url, i) => {
                 const thumbUri = thumbnailUriForExercise(exercise, i, url);
-                const isWebPlayingThis =
-                  Platform.OS === "web" &&
-                  showVideo &&
-                  safeActiveIndex === i;
                 return (
                   <View
                     key={`${exercise.id}-video-${i}`}
                     style={[styles.videoTile, { width: tileWidth }]}
                   >
                     <View style={styles.videoTileAspect}>
-                      {isWebPlayingThis ? (
-                        <View style={styles.embedInTile}>
-                          {createElement("iframe", {
-                            ...iframeProps,
-                            src: url,
-                          })}
-                        </View>
-                      ) : (
-                        <View style={styles.thumbnailWrap}>
-                          <Image
-                            source={{ uri: thumbUri }}
-                            style={styles.thumbnail}
-                            contentFit="cover"
-                            accessibilityLabel={`${exercise.title} — vista ${i + 1}`}
-                          />
-                          <Pressable
-                            style={styles.playOverlay}
-                            onPress={() => {
-                              openVideoAt(i);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Reproducir video ${i + 1} de ${videoUrls.length}`}
-                          >
-                            <View style={styles.playCircle}>
-                              <MaterialIcons
-                                name="play-arrow"
-                                size={32}
-                                color={p.primary}
-                                style={styles.playIcon}
-                              />
-                            </View>
-                          </Pressable>
-                        </View>
-                      )}
+                      <View style={styles.thumbnailWrap}>
+                        <Image
+                          source={{ uri: thumbUri }}
+                          style={styles.thumbnail}
+                          contentFit="cover"
+                          accessibilityLabel={`${exercise.title} — vista ${i + 1}`}
+                        />
+                        <Pressable
+                          style={styles.playOverlay}
+                          onPress={() => {
+                            openVideoAt(i);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Reproducir video ${i + 1} de ${videoUrls.length}`}
+                        >
+                          <View style={styles.playCircle}>
+                            <MaterialIcons
+                              name="play-arrow"
+                              size={32}
+                              color={p.primary}
+                              style={styles.playIcon}
+                            />
+                          </View>
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
                 );
@@ -650,7 +624,7 @@ export function ExerciseCard({
                 <Text style={styles.title}>{exercise.title}</Text>
                 {exercise.description.trim().length > 0 ? (
                   <View style={styles.descriptionBlock}>
-                    <Text style={styles.descriptionLabel}>Descripción</Text>
+                    <Text style={styles.descriptionLabel}>Description</Text>
                     <Text style={styles.description}>
                       {exercise.description}
                     </Text>
@@ -702,7 +676,7 @@ export function ExerciseCard({
             {exercise.reps != null ? (
               <View style={[styles.badge, styles.badgePurple]}>
                 <Text style={styles.badgeTextPurple}>
-                  {exercise.reps} repeticiones
+                  {exercise.reps} reps
                 </Text>
               </View>
             ) : null}
@@ -710,7 +684,7 @@ export function ExerciseCard({
 
           {exercise.tips.length > 0 ? (
             <View style={styles.tipsBox}>
-              <Text style={styles.tipsHeading}>💡 Consejos importantes:</Text>
+              <Text style={styles.tipsHeading}>💡 Important advices:</Text>
               {exercise.tips.map((tip, idx) => (
                 <Text key={idx} style={styles.tipLine}>
                   • {tip}
@@ -721,17 +695,39 @@ export function ExerciseCard({
         </View>
       </View>
 
-      {Platform.OS !== "web" ? (
-        <Modal
-          visible={videoModalVisible}
-          animationType="fade"
-          transparent={false}
-          onRequestClose={() => {
-            void closeVideoModal();
-          }}
-        >
-          <View style={styles.videoModalRoot}>
-            {videoModalVisible && activeVideoUri ? (
+      <Modal
+        visible={videoModalVisible}
+        animationType="fade"
+        transparent={false}
+        onRequestClose={() => {
+          void closeVideoModal();
+        }}
+      >
+        <View style={styles.videoModalRoot}>
+          {videoModalVisible && activeVideoUri ? (
+            Platform.OS === "web" ? (
+              createElement("video", {
+                key: safeActiveIndex,
+                ref: (el: HTMLVideoElement | null) => {
+                  webVideoRef.current = el;
+                },
+                src: activeVideoUri,
+                controls: true,
+                controlsList: "nodownload",
+                playsInline: true,
+                autoPlay: true,
+                style: webModalVideoStyle,
+                onLoadStart: () => {
+                  setVideoLoading(true);
+                },
+                onCanPlay: () => {
+                  setVideoLoading(false);
+                },
+                onError: () => {
+                  setVideoLoading(false);
+                },
+              })
+            ) : (
               <Video
                 key={safeActiveIndex}
                 ref={videoRef}
@@ -747,28 +743,28 @@ export function ExerciseCard({
                   setVideoLoading(false);
                 }}
               />
-            ) : null}
-            {videoLoading ? (
-              <View style={styles.videoModalLoading} pointerEvents="none">
-                <ActivityIndicator size="large" color="#FFFFFF" />
-              </View>
-            ) : null}
-            <Pressable
-              style={[
-                styles.videoModalClose,
-                { top: insets.top + 8, right: insets.right + 8 },
-              ]}
-              onPress={() => {
-                void closeVideoModal();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Cerrar video"
-            >
-              <MaterialIcons name="close" size={28} color="#FFFFFF" />
-            </Pressable>
-          </View>
-        </Modal>
-      ) : null}
+            )
+          ) : null}
+          {videoLoading ? (
+            <View style={styles.videoModalLoading} pointerEvents="none">
+              <ActivityIndicator size="large" color="#FFFFFF" />
+            </View>
+          ) : null}
+          <Pressable
+            style={[
+              styles.videoModalClose,
+              { top: insets.top + 8, right: insets.right + 8 },
+            ]}
+            onPress={() => {
+              void closeVideoModal();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar video"
+          >
+            <MaterialIcons name="close" size={28} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </Modal>
     </Animated.View>
   );
 }

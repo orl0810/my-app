@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "@/src/context/AuthContext";
 
 export default function Index(): ReactElement {
-  const { session, isLoading } = useAuth();
+  const { session, isLoading, onboardingCompleted } = useAuth();
 
   if (isLoading) {
     return (
@@ -21,9 +21,13 @@ export default function Index(): ReactElement {
     );
   }
 
-  if (session) {
-    return <Redirect href="/(tabs)" />;
+  if (!session) {
+    return <Redirect href="/auth" />;
   }
 
-  return <Redirect href="/auth" />;
+  if (!onboardingCompleted) {
+    return <Redirect href="/onboarding-step-welcome" />;
+  }
+
+  return <Redirect href="/(tabs)" />;
 }

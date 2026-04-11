@@ -1,10 +1,52 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export type MotivationalMessageVariant = "card" | "fullBleed";
+
+const TYPING_MS_PER_CHAR = 26;
+const CURSOR_BLINK_MS = 520;
+
+function useTypingStream(fullText: string, enabled: boolean) {
+  const [displayed, setDisplayed] = useState(() => (enabled ? "" : fullText));
+  const [isComplete, setIsComplete] = useState(!enabled);
+  const [cursorVisible, setCursorVisible] = useState(true);
+
+  useEffect(() => {
+    if (!enabled) {
+      setDisplayed(fullText);
+      setIsComplete(true);
+      return;
+    }
+    setDisplayed("");
+    setIsComplete(false);
+
+    let index = 0;
+    const tick = () => {
+      index += 1;
+      if (index > fullText.length) {
+        setIsComplete(true);
+        return;
+      }
+      setDisplayed(fullText.slice(0, index));
+    };
+
+    tick();
+    const id = setInterval(tick, TYPING_MS_PER_CHAR);
+    return () => clearInterval(id);
+  }, [fullText, enabled]);
+
+  useEffect(() => {
+    if (isComplete || !enabled) return;
+    const id = setInterval(() => setCursorVisible((v) => !v), CURSOR_BLINK_MS);
+    return () => clearInterval(id);
+  }, [isComplete, enabled]);
+
+  return { displayed, isComplete, cursorVisible };
+}
 
 interface MotivationalMessageProps {
   message: string;
@@ -12,6 +54,8 @@ interface MotivationalMessageProps {
   authorImage: string;
   /** `fullBleed`: no card chrome; stretches to fill the parent (e.g. parallax header). */
   variant?: MotivationalMessageVariant;
+  /** Stream the body like AI typing. Default: `true` for fullBleed, `false` for card. */
+  animateTyping?: boolean;
 }
 
 export function MotivationalMessage({
@@ -19,9 +63,11 @@ export function MotivationalMessage({
   author,
   authorImage,
   variant = "card",
+  animateTyping = variant === "fullBleed",
 }: MotivationalMessageProps) {
   const colorScheme = useColorScheme() ?? "light";
   const isDark = colorScheme === "dark";
+  const { displayed, isComplete, cursorVisible } = useTypingStream(message, animateTyping);
 
   if (variant === "fullBleed") {
     const quoteTint = isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.1)";
@@ -38,35 +84,56 @@ export function MotivationalMessage({
         </View>
 
         <View style={styles.contentFullBleed}>
-          <View style={styles.headerRow}>
-            <View
-              style={[
-                styles.avatarWrapper,
-                isDark ? styles.avatarRingDark : styles.avatarRingLight,
-              ]}
-            >
-              <Image
-                source={{ uri: authorImage }}
-                placeholder={require("@/assets/images/partial-react-logo.png")}
-                style={styles.avatar}
-                contentFit="cover"
-              />
-            </View>
-            <View style={styles.authorInfo}>
-              <Text style={[styles.authorNameFullBleed, isDark && styles.authorNameDark]}>
-                {author}
-              </Text>
-              <Text style={[styles.authorTitleFullBleed, isDark && styles.authorTitleDark]}>
-                Tu entrenador
-              </Text>
+          <View style={styles.fullBleedHeader}>
+            <View style={styles.headerRow}>
+              <View
+                style={[
+                  styles.avatarWrapper,
+                  isDark ? styles.avatarRingDark : styles.avatarRingLight,
+                ]}
+              >
+                <Image
+                  source={{ uri: authorImage }}
+                  placeholder={require("@/assets/images/partial-react-logo.png")}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              </View>
+              <View style={styles.authorInfo}>
+                <Text style={[styles.authorNameFullBleed, isDark && styles.authorNameDark]}>
+                  {author}
+                </Text>
+                <Text style={[styles.authorTitleFullBleed, isDark && styles.authorTitleDark]}>
+                  Powererd with IA
+                </Text>
+              </View>
             </View>
           </View>
 
-          <Text style={[styles.messageTextFullBleed, isDark && styles.messageTextDark]}>
-            “{message}”
-          </Text>
+          <View style={styles.fullBleedMessageBlock}>
+            <Text
+              style={[styles.messageTextFullBleed, isDark && styles.messageTextDark]}
+              accessibilityLabel={`“${message}”`}
+            >
+              “{displayed}
+              {!isComplete ? (
+                <Text
+                  style={[
+                    styles.typingCursor,
+                    isDark && styles.typingCursorDark,
+                    { opacity: cursorVisible ? 1 : 0.15 },
+                  ]}
+                >
+                  ▏
+                </Text>
+              ) : null}
+              {isComplete ? "”" : null}
+            </Text>
 
-          <View style={[styles.dividerFullBleed, isDark ? styles.dividerDark : styles.dividerLight]} />
+            <View
+              style={[styles.dividerFullBleed, isDark ? styles.dividerDark : styles.dividerLight]}
+            />
+          </View>
         </View>
       </View>
     );
@@ -100,7 +167,17 @@ export function MotivationalMessage({
           </View>
         </View>
 
-        <Text style={styles.messageText}>“{message}”</Text>
+        <Text style={styles.messageText} accessibilityLabel={`“${message}”`}>
+          “{displayed}
+          {!isComplete ? (
+            <Text
+              style={[styles.typingCursorCard, { opacity: cursorVisible ? 1 : 0.15 }]}
+            >
+              ▏
+            </Text>
+          ) : null}
+          {isComplete ? "”" : null}
+        </Text>
 
         <View style={styles.divider} />
       </View>
@@ -112,17 +189,27 @@ const styles = StyleSheet.create({
   fullBleed: {
     flex: 1,
     width: "100%",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingTop: 12,
+    paddingBottom: 14,
   },
   contentFullBleed: {
     position: "relative",
     zIndex: 1,
+    width: "100%",
     flexDirection: "column",
-    gap: 14,
-    flex: 1,
-    justifyContent: "center",
+    gap: 12,
+    justifyContent: "flex-start",
+    alignItems: "stretch",
+  },
+  fullBleedHeader: {
+    width: "100%",
+    flexShrink: 0,
+  },
+  fullBleedMessageBlock: {
+    width: "100%",
+    flexShrink: 0,
   },
   quoteIconContainerFullBleed: {
     position: "absolute",
@@ -155,8 +242,23 @@ const styles = StyleSheet.create({
   messageTextDark: {
     color: "#fff",
   },
+  typingCursor: {
+    color: "#0f172a",
+    fontSize: 17,
+    lineHeight: 26,
+    fontWeight: "600",
+  },
+  typingCursorDark: {
+    color: "#fff",
+  },
+  typingCursorCard: {
+    color: "#fff",
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "600",
+  },
   dividerFullBleed: {
-    marginTop: 6,
+    marginTop: 4,
     width: 56,
     height: 2,
     borderRadius: 1,

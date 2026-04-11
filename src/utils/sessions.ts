@@ -118,6 +118,11 @@ export async function saveProgress(
   if (error) throw error;
 }
 
+/** Resets `session_progress` for this session (no completed exercises). */
+export async function clearSessionProgress(sessionId: string): Promise<void> {
+  await saveProgress(sessionId, 0, 0, { completedExerciseIds: [] });
+}
+
 export async function getProgress(sessionId: string): Promise<SessionProgress | null> {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;

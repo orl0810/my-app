@@ -1,9 +1,31 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { useOnboardingScreenGuard } from "@/src/hooks/useOnboardingScreenGuard";
+import {
+  ONBOARDING_STEP_AFTER_WELCOME,
+  setOnboardingFlowStep,
+} from "@/src/utils/onboarding";
 
 export default function OnboardingStepWelcome() {
   const router = useRouter();
+  const { ready } = useOnboardingScreenGuard("welcome");
+
+  if (!ready) {
+    return (
+      <View style={[styles.wrapper, styles.centered]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -17,7 +39,7 @@ export default function OnboardingStepWelcome() {
         />
 
         <View style={styles.textBlock}>
-          <Text style={styles.title}>Bienvenido a TTCoach</Text>
+          <Text style={styles.title}>Welcome to TTCoach</Text>
           <Text style={styles.subtitle}>
             Your personal tennis coach. Improve your game with
             personalized sessions and professional tracking.
@@ -32,9 +54,7 @@ export default function OnboardingStepWelcome() {
               color="#16A34A"
               style={styles.featureIcon}
             />
-            <Text style={styles.featureText}>
-              Entrenamientos personalizados
-            </Text>
+            <Text style={styles.featureText}>Personalized training</Text>
           </View>
           <View style={styles.featureItem}>
             <MaterialCommunityIcons
@@ -43,7 +63,7 @@ export default function OnboardingStepWelcome() {
               color="#2563EB"
               style={styles.featureIcon}
             />
-            <Text style={styles.featureText}>Objetivos alcanzables</Text>
+            <Text style={styles.featureText}>Achievable goals</Text>
           </View>
           <View style={styles.featureItem}>
             <MaterialCommunityIcons
@@ -52,7 +72,7 @@ export default function OnboardingStepWelcome() {
               color="#8B5CF6"
               style={styles.featureIcon}
             />
-            <Text style={styles.featureText}>Horarios flexibles</Text>
+            <Text style={styles.featureText}>Flexible scheduling</Text>
           </View>
           <View style={styles.featureItem}>
             <MaterialCommunityIcons
@@ -61,15 +81,20 @@ export default function OnboardingStepWelcome() {
               color="#F59E0B"
               style={styles.featureIcon}
             />
-            <Text style={styles.featureText}>Entrenadores expertos</Text>
+            <Text style={styles.featureText}>Expert coaches</Text>
           </View>
         </View>
 
         <Pressable
           style={styles.ctaButton}
-          onPress={() => router.replace("/(tabs)")}
+          onPress={() => {
+            void (async () => {
+              await setOnboardingFlowStep(ONBOARDING_STEP_AFTER_WELCOME);
+              router.push("/onboarding-step-level");
+            })();
+          }}
         >
-          <Text style={styles.ctaText}>Comenzar</Text>
+          <Text style={styles.ctaText}>Get started</Text>
         </Pressable>
       </View>
     </View>
@@ -82,6 +107,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     justifyContent: "center",
     padding: 16,
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   card: {
     borderRadius: 20,

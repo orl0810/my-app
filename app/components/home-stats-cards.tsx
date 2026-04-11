@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useMemo } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useSessionsThisWeekFromHistory } from "@/src/hooks/useSessionHistory";
 
 import type { TrainingSession } from "./session-card";
 
@@ -16,7 +18,7 @@ export type SessionWithSchedule = TrainingSession & {
   completed?: boolean;
 };
 
-function parseSessionDate(session: SessionWithSchedule): Date | null {
+export function parseSessionDate(session: SessionWithSchedule): Date | null {
   const raw =
     session.scheduled_at ??
     session.starts_at ??
@@ -27,7 +29,7 @@ function parseSessionDate(session: SessionWithSchedule): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function isCompleted(session: SessionWithSchedule): boolean {
+export function isCompleted(session: SessionWithSchedule): boolean {
   if (session.completed === true) return true;
   const s = (session.status ?? "").toLowerCase();
   return (
@@ -261,15 +263,37 @@ export function HomeStatsCards({ sessions }: HomeStatsCardsProps) {
       : homeStatsPalette.light;
   const styles = useMemo(() => createHomeStatsStyles(p), [p]);
 
+  const {
+    count: sessionsThisWeekFromHistory,
+    loading: historyWeekLoading,
+    refetch: refetchSessionsThisWeek,
+  } = useSessionsThisWeekFromHistory();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetchSessionsThisWeek();
+    }, [refetchSessionsThisWeek])
+  );
+
   const stats = useMemo(
     () => computeStats(sessions, new Date()),
     [sessions]
   );
 
+  const sessionsThisWeekDisplay =
+    sessionsThisWeekFromHistory !== null
+      ? sessionsThisWeekFromHistory
+      : stats.sessionsThisWeek;
+
+  const completedThisWeekForSubtitle =
+    sessionsThisWeekFromHistory !== null
+      ? sessionsThisWeekFromHistory
+      : stats.completedThisWeek;
+
   const sessionsSubtitle = stats.anyScheduled
-    ? `${stats.completedThisWeek} completada${stats.completedThisWeek === 1 ? "" : "s"}`
-    : stats.completedThisWeek > 0
-      ? `${stats.completedThisWeek} completada${stats.completedThisWeek === 1 ? "" : "s"}`
+    ? `${completedThisWeekForSubtitle} completada${completedThisWeekForSubtitle === 1 ? "" : "s"}`
+    : completedThisWeekForSubtitle > 0
+      ? `${completedThisWeekForSubtitle} completada${completedThisWeekForSubtitle === 1 ? "" : "s"}`
       : "In your list";
 
   const hoursSubtitle = stats.anyScheduled ? "This month" : "Sum of durations";
@@ -301,7 +325,11 @@ export function HomeStatsCards({ sessions }: HomeStatsCardsProps) {
         <View style={styles.cardTop}>
           <View style={styles.cardTextCol}>
             <Text style={styles.cardTitle}>Sessions this week</Text>
-            <Text style={styles.cardMetric}>{stats.sessionsThisWeek}</Text>
+            <Text style={styles.cardMetric}>
+              {historyWeekLoading && sessionsThisWeekFromHistory === null
+                ? "—"
+                : sessionsThisWeekDisplay}
+            </Text>
             <Text style={styles.cardSub}>{sessionsSubtitle}</Text>
           </View>
           <View style={[styles.iconBox, styles.iconBoxBlue]}>

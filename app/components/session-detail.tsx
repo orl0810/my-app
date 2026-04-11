@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSessionContext } from "@/src/store/SessionContext";
 import {
+  clearSessionProgress,
   getProgress,
   saveProgress,
   type SessionProgress,
@@ -25,8 +26,14 @@ import {
   getRawSessionExercises,
 } from "@/src/utils/session-exercises";
 
+import { PaywallModal } from "@/src/components/PaywallModal";
+import { usePaywall } from "@/src/hooks/usePaywall";
+
 import { ExerciseCard, type Exercise } from "./exercise-card";
+import { SessionCompleteModal } from "./session-complete-modal";
 import { type TrainingSession } from "./session-card";
+
+const POST_SAVE_PAYWALL_DELAY_MS = 2500;
 
 type TabKey = "exercises" | "objectives" | "equipment";
 
@@ -486,6 +493,18 @@ export function SessionDetail() {
   const [session, setSession] = useState<TrainingSession | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>("exercises");
+  const [showSessionCompleteModal, setShowSessionCompleteModal] =
+    useState(false);
+  const {
+    paywallVisible,
+    currentFeature,
+    showPaywall,
+    handleUpgradeTap,
+    handleDismiss,
+  } = usePaywall();
+  const postSavePaywallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { width } = useWindowDimensions();
@@ -537,6 +556,19 @@ export function SessionDetail() {
     fetchSession();
   }, [sessionId]);
 
+  useEffect(() => {
+    setShowSessionCompleteModal(false);
+  }, [sessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (postSavePaywallTimerRef.current) {
+        clearTimeout(postSavePaywallTimerRef.current);
+        postSavePaywallTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const prevSessionIdForSyncRef = useRef<string | null>(null);
   const prevAllExercisesDoneRef = useRef<boolean | null>(null);
 
@@ -566,6 +598,10 @@ export function SessionDetail() {
 
     if (allDone === prevDone) return;
     prevAllExercisesDoneRef.current = allDone;
+
+    if (allDone && prevDone === false) {
+      setShowSessionCompleteModal(true);
+    }
 
     if (allDone && !isCompleted(sid)) toggleComplete(sid);
     else if (!allDone && isCompleted(sid)) toggleComplete(sid);
@@ -614,6 +650,46 @@ export function SessionDetail() {
       router.replace("/(tabs)");
     }
   };
+
+  const goHomeAfterPaywall = useCallback(() => {
+    router.replace("/(tabs)");
+  }, [router]);
+
+  const onPaywallDismiss = useCallback(() => {
+    handleDismiss();
+    goHomeAfterPaywall();
+  }, [goHomeAfterPaywall, handleDismiss]);
+
+  const onPaywallUpgrade = useCallback(() => {
+    handleUpgradeTap();
+    goHomeAfterPaywall();
+  }, [goHomeAfterPaywall, handleUpgradeTap]);
+
+  const handleSessionHistorySaved = useCallback(async () => {
+    if (!session?.id) return;
+    const sid = String(session.id);
+    try {
+      await clearSessionProgress(sid);
+    } catch (e) {
+      if (e instanceof Error && e.message === "Not authenticated") {
+        /* still reset UI and leave */
+      } else {
+        console.warn("clearSessionProgress", e);
+      }
+    }
+    if (isCompleted(sid)) toggleComplete(sid);
+    setExercises((prev) => prev.map((ex) => ({ ...ex, completed: false })));
+    setShowSessionCompleteModal(false);
+
+    if (postSavePaywallTimerRef.current) {
+      clearTimeout(postSavePaywallTimerRef.current);
+      postSavePaywallTimerRef.current = null;
+    }
+    postSavePaywallTimerRef.current = setTimeout(() => {
+      postSavePaywallTimerRef.current = null;
+      showPaywall("advanced_stats");
+    }, POST_SAVE_PAYWALL_DELAY_MS);
+  }, [isCompleted, session?.id, showPaywall, toggleComplete]);
 
   if (loading) {
     return (
@@ -863,6 +939,23 @@ export function SessionDetail() {
           ) : null}
         </View>
       </ScrollView>
+
+      <SessionCompleteModal
+        visible={showSessionCompleteModal}
+        session={{
+          id: String(session.id),
+          title: session.title,
+        }}
+        durationMinutes={session.duration}
+        onClose={() => setShowSessionCompleteModal(false)}
+        onSaved={handleSessionHistorySaved}
+      />
+      <PaywallModal
+        visible={paywallVisible}
+        feature={currentFeature ?? "advanced_stats"}
+        onUpgrade={onPaywallUpgrade}
+        onDismiss={onPaywallDismiss}
+      />
     </SafeAreaView>
   );
 }

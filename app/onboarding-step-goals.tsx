@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,20 +11,20 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "@/src/context/AuthContext";
 import { useOnboardingScreenGuard } from "@/src/hooks/useOnboardingScreenGuard";
 import {
-  ONBOARDING_STEP_AFTER_LEVEL,
-  saveProfileLevel,
-  setOnboardingFlowStep,
+  clearOnboardingFlowStep,
+  completeOnboarding,
 } from "@/src/utils/onboarding";
 
-export interface OnboardingStepLevelProps {
-  onNext: (level: string) => void;
+export interface OnboardingStepGoalsProps {
+  onNext: (goals: string[]) => void;
   onBack: () => void;
   isSubmitting?: boolean;
 }
 
-type LevelConfig = {
+type GoalConfig = {
   id: string;
   label: string;
   description: string;
@@ -33,51 +32,74 @@ type LevelConfig = {
   color: string;
 };
 
-const levels: LevelConfig[] = [
+const goals: GoalConfig[] = [
   {
-    id: "beginner",
-    label: "Beginner",
-    description: "I'm new to tennis",
-    icon: "account-outline",
+    id: "technique",
+    label: "Improve technique",
+    description: "Refine strokes and movement",
+    icon: "target",
     color: "#2563EB",
   },
   {
-    id: "intermediate",
-    label: "Intermediate",
-    description: "I have basic experience and want to improve",
-    icon: "medal-outline",
+    id: "fitness",
+    label: "Improve fitness",
+    description: "Build endurance and strength",
+    icon: "heart-outline",
+    color: "#DC2626",
+  },
+  {
+    id: "competition",
+    label: "Compete",
+    description: "Play in tournaments and competitions",
+    icon: "trophy-outline",
+    color: "#CA8A04",
+  },
+  {
+    id: "social",
+    label: "Play socially",
+    description: "Meet people and have fun",
+    icon: "account-group-outline",
     color: "#16A34A",
   },
   {
-    id: "advanced",
-    label: "Advanced",
-    description: "I play regularly and want to refine my technique",
-    icon: "trophy-outline",
-    color: "#EA580C",
+    id: "speed",
+    label: "Speed and agility",
+    description: "Sharpen reflexes and quickness",
+    icon: "lightning-bolt-outline",
+    color: "#9333EA",
   },
   {
-    id: "professional",
-    label: "Professional",
-    description: "I compete at a professional or semi-professional level",
-    icon: "crown-outline",
-    color: "#9333EA",
+    id: "fun",
+    label: "Have fun",
+    description: "Enjoy the game and unwind",
+    icon: "emoticon-happy-outline",
+    color: "#EA580C",
   },
 ];
 
-export function OnboardingStepLevel({
+export function OnboardingStepGoals({
   onNext,
   onBack,
   isSubmitting = false,
-}: OnboardingStepLevelProps) {
-  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
+}: OnboardingStepGoalsProps) {
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+
+  const toggleGoal = (goalId: string) => {
+    setSelectedGoals((prev) =>
+      prev.includes(goalId)
+        ? prev.filter((id) => id !== goalId)
+        : [...prev, goalId],
+    );
+  };
 
   const handleNext = () => {
-    if (selectedLevel && !isSubmitting) {
-      onNext(selectedLevel);
+    if (selectedGoals.length > 0 && !isSubmitting) {
+      onNext(selectedGoals);
     }
   };
 
-  const primaryDisabled = !selectedLevel;
+  const hasSelection = selectedGoals.length > 0;
+  const primaryDisabled = !hasSelection;
 
   return (
     <SafeAreaView style={styles.wrapper} edges={["top", "bottom"]}>
@@ -87,20 +109,20 @@ export function OnboardingStepLevel({
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.title}>{"What's your current level?"}</Text>
+          <Text style={styles.title}>What are your goals?</Text>
           <Text style={styles.subtitle}>
-            This helps us personalize your training experience
+            Select all that apply (at least one)
           </Text>
         </View>
 
         <View style={styles.grid}>
-          {levels.map((level) => {
-            const isSelected = selectedLevel === level.id;
+          {goals.map((goal) => {
+            const isSelected = selectedGoals.includes(goal.id);
 
             return (
               <Pressable
-                key={level.id}
-                onPress={() => !isSubmitting && setSelectedLevel(level.id)}
+                key={goal.id}
+                onPress={() => toggleGoal(goal.id)}
                 style={({ pressed }) => [
                   styles.card,
                   isSelected && styles.cardSelected,
@@ -115,15 +137,15 @@ export function OnboardingStepLevel({
                     ]}
                   >
                     <MaterialCommunityIcons
-                      name={level.icon}
+                      name={goal.icon}
                       size={24}
-                      color={isSelected ? "#FFFFFF" : level.color}
+                      color={isSelected ? "#FFFFFF" : goal.color}
                     />
                   </View>
                   <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>{level.label}</Text>
+                    <Text style={styles.cardTitle}>{goal.label}</Text>
                     <Text style={styles.cardDescription}>
-                      {level.description}
+                      {goal.description}
                     </Text>
                   </View>
                 </View>
@@ -151,10 +173,7 @@ export function OnboardingStepLevel({
           style={({ pressed }) => [
             styles.buttonPrimary,
             primaryDisabled && styles.buttonDisabled,
-            pressed &&
-              selectedLevel &&
-              !isSubmitting &&
-              styles.buttonPressed,
+            pressed && hasSelection && !isSubmitting && styles.buttonPressed,
           ]}
         >
           {isSubmitting ? (
@@ -175,9 +194,10 @@ export function OnboardingStepLevel({
   );
 }
 
-export default function OnboardingStepLevelScreen() {
+export default function OnboardingStepGoalsScreen() {
   const router = useRouter();
-  const { ready } = useOnboardingScreenGuard("level");
+  const { markOnboardingCompleted } = useAuth();
+  const { ready } = useOnboardingScreenGuard("goals");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!ready) {
@@ -189,28 +209,22 @@ export default function OnboardingStepLevelScreen() {
   }
 
   return (
-    <OnboardingStepLevel
+    <OnboardingStepGoals
       isSubmitting={isSubmitting}
       onBack={() => router.back()}
-      onNext={(level) => {
+      onNext={(_goals) => {
         void (async () => {
           setIsSubmitting(true);
           try {
-            await saveProfileLevel(level);
-            await setOnboardingFlowStep(ONBOARDING_STEP_AFTER_LEVEL);
-            router.push("/onboarding-step-goals");
+            await completeOnboarding();
           } catch (e) {
-            const message =
-              e instanceof Error
-                ? e.message
-                : typeof e === "object" &&
-                    e !== null &&
-                    "message" in e &&
-                    typeof (e as { message: unknown }).message === "string"
-                  ? (e as { message: string }).message
-                  : "We couldn't save your level.";
-            Alert.alert("Error", message);
+            if (__DEV__) {
+              console.warn("[onboarding] completeOnboarding failed, continuing home", e);
+            }
           } finally {
+            await clearOnboardingFlowStep();
+            markOnboardingCompleted();
+            router.replace("/(tabs)");
             setIsSubmitting(false);
           }
         })();

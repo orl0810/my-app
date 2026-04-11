@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
@@ -18,8 +18,21 @@ import {
   useAppearancePreference,
 } from "@/src/context/ColorSchemePreferenceContext";
 import { useSessionContext } from "@/src/store/SessionContext";
+import { supabase } from "@/src/utils/supabase";
 
 const NOTIFICATIONS_KEY = "@ttcoach:notifications";
+
+const LEVEL_LABELS: Record<string, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+  professional: "Professional",
+};
+
+function formatProfileLevel(level: string | null): string {
+  if (!level) return "—";
+  return LEVEL_LABELS[level] ?? level;
+}
 
 function initialsFromDisplayName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -41,6 +54,51 @@ export default function AccountScreen() {
   const { preference, setPreference } = useAppearancePreference();
 
   const [notificationsOn, setNotificationsOn] = useState(true);
+  const [profileLevel, setProfileLevel] = useState<string | null>(null);
+  const [sessionHistoryCount, setSessionHistoryCount] = useState(0);
+
+  const loadProfileLevel = useCallback(async () => {
+    if (!user?.id) {
+      setProfileLevel(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("level")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (error) {
+      setProfileLevel(null);
+      return;
+    }
+    const raw = data?.level;
+    setProfileLevel(
+      typeof raw === "string" && raw.trim() ? raw.trim() : null,
+    );
+  }, [user?.id]);
+
+  const loadSessionHistoryCount = useCallback(async () => {
+    if (!user?.id) {
+      setSessionHistoryCount(0);
+      return;
+    }
+    const { count, error } = await supabase
+      .from("session_history")
+      .select("*", { count: "exact", head: true });
+
+    if (error) {
+      setSessionHistoryCount(0);
+      return;
+    }
+    setSessionHistoryCount(count ?? 0);
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfileLevel();
+      void loadSessionHistoryCount();
+    }, [loadProfileLevel, loadSessionHistoryCount]),
+  );
 
   useEffect(() => {
     void (async () => {
@@ -83,7 +141,7 @@ export default function AccountScreen() {
 
   const initials = initialsFromDisplayName(fullName);
 
-  const sessionsDone = state.completedIds.length;
+  const sessionsDone = sessionHistoryCount;
   const favouritesSaved = state.favoriteIds.length;
 
   const c = useMemo(
@@ -193,6 +251,13 @@ export default function AccountScreen() {
           <ProfileRow
             label="Username"
             value={username}
+            textColor={c.text}
+            mutedColor={c.textMuted}
+            dividerColor={c.divider}
+          />
+          <ProfileRow
+            label="Level"
+            value={formatProfileLevel(profileLevel)}
             textColor={c.text}
             mutedColor={c.textMuted}
             dividerColor={c.divider}
